@@ -1,4 +1,1 @@
-build/
-manifest.mf
-nbproject/genfiles.properties
-nbproject/private/
+*.pyc
