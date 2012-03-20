@@ -38,8 +38,8 @@ def main():
 
     """
     All Parsers follow the same interface.
-    A method 'parse' creates a list of chapters, containing a list of images url
-    In case the website given is that of a chapter, the list will only contain
+    'parse' creates a list of chapters, each containing a list of (page,url)
+    In case the website given is that of a chapter, the list will contain
     one list corresponding to that chapter.
     This is done using as many threads as the website supports.
     """
@@ -53,13 +53,20 @@ def main():
     """
     Recovers the images parsed and saves them to <manga>/<chapter>/<image>
     """
+    chDigits = len(str(len(parser.imagesUrl)))
     for chapter, pages in parser.imagesUrl:
+        #Normalize chapter digits
+        chapter = "0" * (chDigits - len(str(chapter))) + str(chapter)
         chapterPath = os.path.join(basePath, chapter)
         if not os.path.exists(chapterPath):
             os.makedirs(chapterPath)
         savers = list()
-        logging.info('Saving Chapter: %s to %s', chapter, chapterPath)
+        logging.info('Saving Chapter %s to %s', chapter, chapterPath)
+
+        pgDigits = len(str(len(pages)))
         for page, url in pages:
+            #Normalize page digits
+            page = "0" * (pgDigits - len(str(page))) + str(page)
             imgSaver = ImageSaver(os.path.join(chapterPath, str(page) + '.jpg'), url)
             savers.append(imgSaver)
             imgSaver.start()
