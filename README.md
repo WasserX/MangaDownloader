@@ -26,3 +26,4 @@ You can see all available options with `./MangaDownloader --help`
 ## Supported Online Readers
 
 * [MangaReader](http://www.mangareader.net)
+* [MangaHere](http://www.mangahere.com)

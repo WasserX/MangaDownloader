@@ -11,6 +11,7 @@ import logging
 
 import utils
 import MangaReader
+import MangaHere
 from ImageSaver import ImageSaver
 
 
@@ -33,6 +34,8 @@ def main():
 
     if re.search('mangareader\.net', args.url):
         parser = MangaReader.MangaReader(args.url)
+    elif re.search('mangahere\.com', args.url):
+        parser = MangaHere.MangaHere(args.url)
     else:
         raise ValueError('Online Reader not supported')
 
