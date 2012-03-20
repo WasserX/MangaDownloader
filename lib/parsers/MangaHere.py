@@ -4,7 +4,7 @@ import os
 import logging
 import string
 from BaseParser import BaseParser
-from threading import Thread, Semaphore
+from threading import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -82,14 +82,11 @@ class ChapterParser(BaseParser):
 
     def handle_endtag(self, tag):
         if tag == 'select' and self._parsingPages:
-            semPages = Semaphore(BaseParser.THREADS)
             threads = list()
             for pageNumber, page in enumerate(self.pages, start=1):
                 parser = PageParser(page, self.imagesUrl, pageNumber)
                 threads.append(parser)
-                semPages.acquire()
                 parser.start()
-                semPages.release()
             map(lambda thread: thread.join(), threads)
             self.imagesUrl.sort()
             self._parsingPages = False

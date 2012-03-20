@@ -3,7 +3,7 @@ import sys
 import os
 import logging
 from BaseParser import BaseParser
-from threading import Thread, Semaphore
+from threading import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class MangaReader(BaseParser):
                 self.title = self.handle_chapter(self.url).title
 
     def handle_chapter(self, chapter):
-        logger.debug('Parsing Chapter: %s', chapter)
+        logger.info('Parsing Chapter: %s', chapter)
         parser = ChapterParser(chapter).parse()
         self.imagesUrl.append((parser.chapter, parser.imagesUrl))
         return parser
@@ -78,14 +78,11 @@ class ChapterParser(BaseParser):
 
     def handle_endtag(self, tag):
         if tag == 'div' and self._parsingPages:
-            semPages = Semaphore(BaseParser.THREADS)
             threads = list()
             for pageNumber, page in enumerate(self.pages, start=1):
-                semPages.acquire()
                 parser = PageParser(MangaReader.BASE_URL + page, self.imagesUrl, pageNumber)
                 threads.append(parser)
                 parser.start()
-                semPages.release()
             map(lambda thread: thread.join(), threads)
             self.imagesUrl.sort()
             self._parsingPages = False
