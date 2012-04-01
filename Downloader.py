@@ -1,30 +1,35 @@
 #!/usr/bin/env python
 
-import sys
-sys.path.append('lib')
-sys.path.append('lib/parsers')
+"""Download mangas from online readers. Supports for compression of the
+mangas in separate chapters.
 
+A parameter can be passed to establish how many concurrent connections can
+be made to the same website. The compression process will always use 4 threads.
+"""
+
+import sys
 import argparse
 import os
 import re
 import logging
 
-import utils
-import MangaReader
-import MangaHere
-from ImageSaver import ImageSaver
+from lib import utils
+from lib.parsers.mangareader import MangaReader
+from lib.parsers.mangahere import MangaHere
+from lib.ImageSaver import ImageSaver
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Download images from an online manga reader')
-    parser.add_argument('url', metavar='manga_url', type=str,
-                        help='Website of the manga to download from one of the available sites')
-    parser.add_argument('-c', default=False, action="store_true", dest='compress',
-                        help='Should we compress each chapter using zip?')
-    parser.add_argument('-v', default=False, action="store_true", dest='verbose',
-                        help='Should we activate verbose mode')
-    parser.add_argument('-d', metavar='destination', type=str, default=sys.path[0], dest='dest',
-                        help='Where to create the folder with the manga')
+def parse_args():
+    """Parse arguments, set the correct logging level and return the args."""
+    parser = argparse.ArgumentParser(description='''Download mangas or chapters
+                                     from online manga readers.''')
+    parser.add_argument('url', type=str, help='Url of the manga to download.')
+    parser.add_argument('-c', default=False, action="store_true",
+                         dest='compress', help='Compress chapters to cbz?')
+    parser.add_argument('-v', default=False, action="store_true",
+                        dest='verbose', help='Activate verbose mode')
+    parser.add_argument('-d', type=str, default=sys.path[0], dest='dest',
+                        help='Destination where manga folder will be created.')
     args = parser.parse_args()
 
     if args.verbose:
@@ -32,54 +37,46 @@ def main():
     else:
         logging.basicConfig(level=logging.INFO)
 
+    return args
+
+
+def main():
+    """Download the manga in args and compress it if desired."""
+    args = parse_args()
+
     if re.search('mangareader\.net', args.url):
-        parser = MangaReader.MangaReader(args.url)
+        parser = MangaReader(args.url)
     elif re.search('mangahere\.com', args.url):
-        parser = MangaHere.MangaHere(args.url)
+        parser = MangaHere(args.url)
     else:
         raise ValueError('Online Reader not supported')
 
-    """
-    All Parsers follow the same interface.
-    'parse' creates a list of chapters, each containing a list of (page,url)
-    In case the website given is that of a chapter, the list will contain
-    one list corresponding to that chapter.
-    This is done using as many threads as the website supports.
-    """
     logging.info('Fetching and parsing URL: %s', args.url)
     parser.parse()
 
-    basePath = os.path.join(args.dest, parser.title)
-    if not os.path.exists(basePath):
-        os.makedirs(basePath)
-
-    """
-    Recovers the images parsed and saves them to <manga>/<chapter>/<image>
-    """
-    chDigits = len(str(len(parser.imagesUrl)))
+    #Recovers the images parsed and saves them to <manga>/<chapter>/<image>
+    manga_path = os.path.join(args.dest, parser.title)
+    ch_digits = len(str(len(parser.imagesUrl)))
     for chapter, pages in parser.imagesUrl:
         #Normalize chapter digits
-        chapter = "0" * (chDigits - len(str(chapter))) + str(chapter)
-        chapterPath = os.path.join(basePath, chapter)
-        if not os.path.exists(chapterPath):
-            os.makedirs(chapterPath)
+        chapter = "0" * (ch_digits - len(str(chapter))) + str(chapter)
+        chapter_path = os.path.join(manga_path, chapter)
+        if not os.path.exists(chapter_path):
+            os.makedirs(chapter_path)
         savers = list()
-        logging.info('Saving Chapter %s to %s', chapter, chapterPath)
+        logging.info('Saving Chapter %s to %s', chapter, chapter_path)
 
-        pgDigits = len(str(len(pages)))
+        digits = len(str(len(pages)))
         for page, url in pages:
             #Normalize page digits
-            page = "0" * (pgDigits - len(str(page))) + str(page)
-            imgSaver = ImageSaver(os.path.join(chapterPath, str(page) + '.jpg'), url)
-            savers.append(imgSaver)
-            imgSaver.start()
+            page = "0" * (digits - len(str(page))) + str(page)
+            path = os.path.join(chapter_path, str(page) + '.jpg')
+            saver = ImageSaver(path, url)
+            savers.append(saver)
+            saver.start()
         map(lambda thread: thread.join(), savers)
 
-    """
-    If the user wants to compress each chapter inside of <manga>/
-    a file named <chapter>.cbz will be created containing the images for
-    that chapter
-    """
+    #If selected, compress chapters as <manga>/<chapter>.cbz
     if args.compress:
         logging.info('Compressing Manga: %s', parser.title)
         compressor = utils.MangaCompressor(parser.title, args.dest, True)
