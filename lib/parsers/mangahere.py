@@ -3,7 +3,7 @@ import sys
 import os
 import logging
 import string
-from BaseParser import BaseParser
+from baseparser import BaseParser
 from threading import Thread
 
 logger = logging.getLogger(__name__)

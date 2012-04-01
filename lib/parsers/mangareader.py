@@ -6,7 +6,7 @@ must be that of a chapter's page.
 """
 
 import logging
-from BaseParser import BaseParser
+from baseparser import BaseParser
 from threading import Thread
 
 logger = logging.getLogger(__name__)
