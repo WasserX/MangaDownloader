@@ -3,8 +3,7 @@
 """Download mangas from online readers. Supports for compression of the
 mangas in separate chapters.
 
-A parameter can be passed to establish how many concurrent connections can
-be made to the same website. The compression process will always use 4 threads.
+The compression process will always use MAX_THREADS.
 """
 
 import sys
@@ -12,11 +11,14 @@ import argparse
 import os
 import re
 import logging
+from threading import Semaphore
 
 from lib import utils
+from lib.parsers.baseparser import BaseParser
 from lib.parsers.mangareader import MangaReader
 from lib.parsers.mangahere import MangaHere
-from lib.ImageSaver import ImageSaver
+
+MAX_THREADS = 4
 
 
 def parse_args():
@@ -40,6 +42,33 @@ def parse_args():
     return args
 
 
+def recover_images(parser, destination):
+    """Parse images and save them to <manga>/<chapter>/<image>."""
+    urls = parser.parse()
+    manga_path = os.path.join(destination, parser.title)
+    ch_digits = len(str(len(urls)))
+    for chapter, pages in urls:
+        #Normalize chapter digits
+        chapter = "0" * (ch_digits - len(str(chapter))) + str(chapter)
+        chapter_path = os.path.join(manga_path, chapter)
+        if not os.path.exists(chapter_path):
+            os.makedirs(chapter_path)
+        savers = list()
+        logging.info('Saving Chapter %s to %s', chapter, chapter_path)
+
+        pg_digits = len(str(len(pages)))
+        sem = Semaphore(BaseParser.MAX_CONNECTIONS)
+        for page, url in enumerate(pages, start=1):
+            sem.acquire()
+            #Normalize page digits
+            page = "0" * (pg_digits - len(str(page))) + str(page)
+            path = os.path.join(chapter_path, str(page) + '.jpg')
+            saver = utils.ImageSaver(path, url, sem)
+            savers.append(saver)
+            saver.start()
+        map(lambda thread: thread.join(), savers)
+
+
 def main():
     """Download the manga in args and compress it if desired."""
     args = parse_args()
@@ -52,35 +81,15 @@ def main():
         raise ValueError('Online Reader not supported')
 
     logging.info('Fetching and parsing URL: %s', args.url)
-    parser.parse()
 
-    #Recovers the images parsed and saves them to <manga>/<chapter>/<image>
-    manga_path = os.path.join(args.dest, parser.title)
-    ch_digits = len(str(len(parser.imagesUrl)))
-    for chapter, pages in parser.imagesUrl:
-        #Normalize chapter digits
-        chapter = "0" * (ch_digits - len(str(chapter))) + str(chapter)
-        chapter_path = os.path.join(manga_path, chapter)
-        if not os.path.exists(chapter_path):
-            os.makedirs(chapter_path)
-        savers = list()
-        logging.info('Saving Chapter %s to %s', chapter, chapter_path)
-
-        digits = len(str(len(pages)))
-        for page, url in pages:
-            #Normalize page digits
-            page = "0" * (digits - len(str(page))) + str(page)
-            path = os.path.join(chapter_path, str(page) + '.jpg')
-            saver = ImageSaver(path, url)
-            savers.append(saver)
-            saver.start()
-        map(lambda thread: thread.join(), savers)
+    recover_images(parser, args.dest)
 
     #If selected, compress chapters as <manga>/<chapter>.cbz
     if args.compress:
         logging.info('Compressing Manga: %s', parser.title)
-        compressor = utils.MangaCompressor(parser.title, args.dest, True)
-        compressor.compressManga()
+        path = os.path.join(args.dest, parser.title)
+        compressor = utils.MangaCompressor(path, parser.title, True)
+        compressor.compress_manga(MAX_THREADS)
 
     logging.info('Finished Processing Manga: %s', parser.title)
 
