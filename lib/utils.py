@@ -64,6 +64,9 @@ class MangaCompressor(Thread):
         if self.erase:
             shutil.rmtree(self.path)
 
+        if self._semaphore:
+            self._semaphore.release()
+
     def compress_manga(self, max_threads=1):
         """Compress a whole directory creating files in the format
         '<manga title> <subdir name>.cbz'"""
